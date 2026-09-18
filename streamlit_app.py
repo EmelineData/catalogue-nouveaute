@@ -1,9 +1,16 @@
 from __future__ import annotations
 
+import hashlib
 from io import BytesIO
+from time import sleep
 
 import pandas as pd
+import requests
 import streamlit as st
+from PIL import Image, ImageDraw, ImageFont
+
+
+BNF_COVER_URL = "https://openapi.bnf.fr/couverture/image/image/recupererImage"
 
 
 st.set_page_config(
@@ -59,6 +66,81 @@ def clean_text(series: pd.Series) -> pd.Series:
         .str.strip()
         .replace({"": pd.NA, "nan": pd.NA, "None": pd.NA})
     )
+
+
+def placeholder_cover() -> bytes:
+    """Create a neutral cover used when the BnF has no image."""
+    image = Image.new("RGB", (600, 900), "#F2EFE9")
+    draw = ImageDraw.Draw(image)
+    draw.rounded_rectangle(
+        (45, 45, 555, 855),
+        radius=24,
+        outline="#5C6B73",
+        width=7,
+    )
+    try:
+        title_font = ImageFont.truetype("DejaVuSans-Bold.ttf", 46)
+        text_font = ImageFont.truetype("DejaVuSans.ttf", 34)
+    except OSError:
+        title_font = ImageFont.load_default()
+        text_font = ImageFont.load_default()
+
+    draw.text(
+        (300, 355),
+        "NOUVEAUTÉ",
+        fill="#244B5A",
+        font=title_font,
+        anchor="mm",
+    )
+    draw.multiline_text(
+        (300, 475),
+        "Couverture\nnon disponible",
+        fill="#5C6B73",
+        font=text_font,
+        anchor="mm",
+        align="center",
+        spacing=14,
+    )
+    output = BytesIO()
+    image.save(output, format="PNG")
+    return output.getvalue()
+
+
+@st.cache_data(ttl=86_400, show_spinner=False)
+def fetch_bnf_cover(isbn: str) -> tuple[bytes | None, str]:
+    """Retrieve a front cover from the BnF API using an ISBN."""
+    try:
+        response = requests.get(
+            BNF_COVER_URL,
+            params={
+                "ISBN": isbn,
+                "couverture": 1,
+                "taille": "originale",
+                "largeur": 300,
+                "hauteur": 450,
+            },
+            headers={
+                "User-Agent": "Catalogue-nouveautes-bibliotheque/1.0"
+            },
+            timeout=25,
+        )
+    except requests.RequestException as exc:
+        return None, f"Erreur réseau : {exc}"
+
+    content_type = response.headers.get("Content-Type", "").lower()
+    if response.status_code == 200 and content_type.startswith("image/"):
+        try:
+            Image.open(BytesIO(response.content)).verify()
+        except Exception:
+            return None, "Réponse reçue, mais image illisible"
+        return response.content, "Couverture trouvée"
+
+    # La BnF indique qu'une réponse 500 signifie actuellement le plus souvent
+    # que la notice ne contient pas de couverture.
+    if response.status_code == 500:
+        return None, "Couverture non disponible à la BnF"
+
+    return None, f"Réponse BnF inattendue ({response.status_code})"
 
 
 st.title("📚 Créateur de catalogue de nouveautés")
@@ -214,6 +296,111 @@ st.dataframe(catalogue.head(20), use_container_width=True, hide_index=True)
 
 st.success(
     "Le fichier est correctement lu et les colonnes utiles sont isolées. "
-    "La prochaine étape ajoutera la récupération des couvertures BnF."
+    "Tu peux maintenant rechercher les couvertures BnF."
 )
 
+st.divider()
+st.subheader("Rechercher les couvertures BnF")
+st.write(
+    "Seuls les ISBN sont envoyés au service Couvertures de la Bibliothèque "
+    "nationale de France. Le fichier Excel complet n'est pas transmis."
+)
+
+dataset_key = hashlib.sha256(
+    raw_excel + sheet_name.encode("utf-8") + isbn_column.encode("utf-8")
+).hexdigest()
+
+if st.session_state.get("cover_dataset_key") != dataset_key:
+    st.session_state.pop("cover_results", None)
+    st.session_state["cover_dataset_key"] = dataset_key
+
+if st.button(
+    "🔎 Rechercher les couvertures",
+    type="primary",
+    disabled=valid_isbn_count == 0,
+):
+    valid_rows = catalogue.loc[
+        catalogue["isbn_valide"], ["isbn", "isbn_nettoye"]
+    ].drop_duplicates(subset="isbn_nettoye")
+
+    results: dict[str, dict[str, bytes | str | None]] = {}
+    progress = st.progress(0, text="Préparation de la recherche...")
+    total = len(valid_rows)
+
+    for position, row in enumerate(valid_rows.itertuples(index=False), start=1):
+        progress.progress(
+            position / total,
+            text=f"Recherche {position}/{total} — ISBN {row.isbn_nettoye}",
+        )
+        image_bytes, status = fetch_bnf_cover(str(row.isbn))
+        results[str(row.isbn_nettoye)] = {
+            "image": image_bytes,
+            "statut": status,
+        }
+        sleep(0.15)
+
+    progress.empty()
+    st.session_state["cover_results"] = results
+
+cover_results = st.session_state.get("cover_results")
+
+if cover_results:
+    catalogue["statut_couverture"] = catalogue["isbn_nettoye"].map(
+        lambda isbn: (
+            cover_results.get(str(isbn), {}).get("statut")
+            if pd.notna(isbn)
+            else "ISBN absent ou invalide"
+        )
+    )
+
+    found_count = sum(
+        result["image"] is not None for result in cover_results.values()
+    )
+    not_found_count = len(cover_results) - found_count
+
+    cover_1, cover_2, cover_3 = st.columns(3)
+    cover_1.metric("Couvertures trouvées", found_count)
+    cover_2.metric("Non disponibles", not_found_count)
+    cover_3.metric("ISBN non exploitables", missing_or_invalid_count)
+
+    with st.expander("Voir le détail des résultats", expanded=False):
+        st.dataframe(
+            catalogue[
+                ["titre", "isbn", "isbn_nettoye", "statut_couverture"]
+            ],
+            use_container_width=True,
+            hide_index=True,
+        )
+
+    st.subheader("Aperçu des couvertures")
+    preview_columns = st.columns(4)
+    fallback = placeholder_cover()
+
+    for preview_position, row in enumerate(
+        catalogue.head(12).itertuples(index=False)
+    ):
+        isbn_clean = getattr(row, "isbn_nettoye", None)
+        result = (
+            cover_results.get(str(isbn_clean), {})
+            if pd.notna(isbn_clean)
+            else {}
+        )
+        image = result.get("image") or fallback
+        with preview_columns[preview_position % 4]:
+            st.image(image, use_container_width=True)
+            st.markdown(f"**{getattr(row, 'titre', 'Titre non renseigné')}**")
+            if hasattr(row, "nom_auteur") and pd.notna(row.nom_auteur):
+                author = " ".join(
+                    value
+                    for value in [
+                        getattr(row, "prenom_auteur", None),
+                        getattr(row, "nom_auteur", None),
+                    ]
+                    if pd.notna(value)
+                )
+                st.caption(author)
+
+    st.info(
+        "Étape suivante : choisir le titre du catalogue et le nombre de livres "
+        "par page, puis générer le PDF."
+    )

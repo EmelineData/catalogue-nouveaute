@@ -5,16 +5,19 @@ en catalogue PDF illustré avec les couvertures disponibles auprès de la BnF.
 
 ## État du projet
 
-Cette première version permet :
+Cette deuxième version permet :
 
 - de déposer un fichier `.xls` ou `.xlsx` ;
 - de choisir la feuille Excel ;
 - d'associer les colonnes ISBN, titre, auteur, année, genre et cote ;
 - d'isoler uniquement les données bibliographiques sélectionnées ;
-- de vérifier les ISBN exploitables.
+- de vérifier les ISBN exploitables ;
+- d'interroger l'API Couvertures de la BnF ;
+- d'afficher une barre de progression et un bilan des résultats ;
+- de prévisualiser les couvertures trouvées ;
+- d'utiliser une vignette générique lorsqu'une couverture est absente.
 
-La récupération des couvertures BnF et la génération du PDF seront ajoutées
-à l'étape suivante.
+La génération du PDF personnalisable sera ajoutée à l'étape suivante.
 
 ## Développement dans GitHub Codespaces
 
@@ -55,4 +58,3 @@ Les fichiers Excel et PDF sont exclus du dépôt Git par `.gitignore`. Ne jamais
 ajouter au dépôt un fichier contenant des données d'emprunteurs ou d'autres
 données personnelles. Lors du déploiement en ligne, le fichier envoyé est traité
 sur l'infrastructure de l'hébergeur.
-
