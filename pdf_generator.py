@@ -2,23 +2,21 @@ from __future__ import annotations
 
 from datetime import date
 from io import BytesIO
-from pathlib import Path
 from typing import Any
 
 import pandas as pd
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.utils import ImageReader
-from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.pdfmetrics import stringWidth
-from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.pdfgen import canvas
-import reportlab
 
 
-FONT_DIRECTORY = Path(reportlab.__file__).parent / "fonts"
-pdfmetrics.registerFont(TTFont("CatalogueSans", str(FONT_DIRECTORY / "Vera.ttf")))
-pdfmetrics.registerFont(TTFont("CatalogueSans-Bold", str(FONT_DIRECTORY / "VeraBd.ttf")))
+PDF_FONTS = {
+    "Helvetica": ("Helvetica", "Helvetica-Bold"),
+    "Times": ("Times-Roman", "Times-Bold"),
+    "Courier": ("Courier", "Courier-Bold"),
+}
 
 
 PAGE_LAYOUTS = {
@@ -156,18 +154,26 @@ def draw_book_card(
     width: float,
     height: float,
     books_per_page: int,
+    regular_font: str,
+    bold_font: str,
+    body_font_size: float,
+    show_card_borders: bool,
 ) -> None:
     """Draw one book card inside the supplied rectangle."""
     card_padding = 10
     compact = books_per_page == 6
-    title_size = 9.2 if compact else 10.5
-    body_size = 7.7 if compact else 8.8
+    body_size = body_font_size - 1 if compact else body_font_size
+    title_size = body_size + 1.7
     title_leading = title_size + 2
     body_leading = body_size + 2
 
     pdf.setFillColor(colors.HexColor("#F8FAF9"))
     pdf.setStrokeColor(colors.HexColor("#CAD8D2"))
-    pdf.roundRect(x, y, width, height, 7, stroke=1, fill=1)
+    pdf.roundRect(
+        x, y, width, height, 7,
+        stroke=1 if show_card_borders else 0,
+        fill=1,
+    )
 
     text_area_height = max(78, height * (0.34 if compact else 0.32))
     cover_box_x = x + card_padding
@@ -191,7 +197,7 @@ def draw_book_card(
     title = text_value(row.get("titre")) or "Titre non renseigné"
     title_lines = wrap_text(
         title,
-        "CatalogueSans-Bold",
+        bold_font,
         title_size,
         text_width,
         max_lines=2 if compact else 3,
@@ -201,7 +207,7 @@ def draw_book_card(
         title_lines,
         text_x,
         cursor_y,
-        "CatalogueSans-Bold",
+        bold_font,
         title_size,
         title_leading,
         colors.HexColor("#244B5A"),
@@ -236,7 +242,7 @@ def draw_book_card(
     for detail in detail_lines[:max_detail_lines]:
         wrapped = wrap_text(
             detail,
-            "CatalogueSans",
+            regular_font,
             body_size,
             text_width,
             max_lines=1,
@@ -246,7 +252,7 @@ def draw_book_card(
             wrapped,
             text_x,
             cursor_y,
-            "CatalogueSans",
+            regular_font,
             body_size,
             body_leading,
             colors.HexColor("#465650"),
@@ -260,12 +266,24 @@ def build_catalogue_pdf(
     document_title: str,
     books_per_page: int,
     selected_fields: list[str],
+    header_color: str = "#244B5A",
+    header_text_color: str = "#FFFFFF",
+    font_family: str = "Helvetica",
+    header_font_size: int = 16,
+    body_font_size: float = 8.8,
+    show_card_borders: bool = True,
 ) -> bytes:
     """Generate the complete catalogue and return its PDF bytes."""
     if books_per_page not in PAGE_LAYOUTS:
         raise ValueError("Le nombre de livres par page doit être 2, 4 ou 6.")
     if catalogue.empty:
         raise ValueError("Le catalogue ne contient aucun ouvrage.")
+    if font_family not in PDF_FONTS:
+        raise ValueError("La police PDF sélectionnée n'est pas reconnue.")
+
+    regular_font, bold_font = PDF_FONTS[font_family]
+    header_fill = colors.HexColor(header_color)
+    header_text_fill = colors.HexColor(header_text_color)
 
     output = BytesIO()
     pdf = canvas.Canvas(output, pagesize=A4, pageCompression=1)
@@ -286,14 +304,14 @@ def build_catalogue_pdf(
     total_pages = (len(catalogue) + books_per_page - 1) // books_per_page
 
     for page_number in range(total_pages):
-        pdf.setFillColor(colors.HexColor("#244B5A"))
+        pdf.setFillColor(header_fill)
         pdf.rect(0, page_height - header_height, page_width, header_height, stroke=0, fill=1)
-        pdf.setFillColor(colors.white)
-        pdf.setFont("CatalogueSans-Bold", 16)
+        pdf.setFillColor(header_text_fill)
+        pdf.setFont(bold_font, header_font_size)
         header_lines = wrap_text(
             document_title or "Les nouveautés de la bibliothèque",
-            "CatalogueSans-Bold",
-            16,
+            bold_font,
+            header_font_size,
             page_width - 80,
             max_lines=2,
         )
@@ -325,9 +343,13 @@ def build_catalogue_pdf(
                 card_width,
                 card_height,
                 books_per_page,
+                regular_font,
+                bold_font,
+                body_font_size,
+                show_card_borders,
             )
 
-        pdf.setFont("CatalogueSans", 7.5)
+        pdf.setFont(regular_font, 7.5)
         pdf.setFillColor(colors.HexColor("#5C6B73"))
         pdf.drawString(
             margin_x,

@@ -409,7 +409,7 @@ if cover_results:
     )
 
     st.divider()
-    st.subheader("Créer le catalogue des nouveautés au format PDF")
+    st.subheader("Créer le catalogue PDF")
 
     document_title = st.text_input(
         "Titre du catalogue",
@@ -451,6 +451,45 @@ if cover_results:
             default=default_fields,
         )
 
+    with st.expander("🎨 Personnaliser la mise en page", expanded=False):
+        style_left, style_middle, style_right = st.columns(3)
+
+        with style_left:
+            header_color = st.color_picker(
+                "Couleur du bandeau",
+                value="#244B5A",
+            )
+            header_text_color = st.color_picker(
+                "Couleur du titre",
+                value="#FFFFFF",
+            )
+
+        with style_middle:
+            font_family = st.selectbox(
+                "Police du PDF",
+                options=["Helvetica", "Times", "Courier"],
+                index=0,
+            )
+            header_font_size = st.slider(
+                "Taille du titre du catalogue",
+                min_value=12,
+                max_value=22,
+                value=16,
+            )
+
+        with style_right:
+            body_font_size = st.slider(
+                "Taille du texte des notices",
+                min_value=7.0,
+                max_value=11.0,
+                value=8.8,
+                step=0.2,
+            )
+            show_card_borders = st.checkbox(
+                "Afficher les bordures",
+                value=True,
+            )
+
     estimated_pages = (
         (len(catalogue) + books_per_page - 1) // books_per_page
         if books_per_page
@@ -466,6 +505,12 @@ if cover_results:
         "title": document_title,
         "books_per_page": books_per_page,
         "fields": selected_fields,
+        "header_color": header_color,
+        "header_text_color": header_text_color,
+        "font_family": font_family,
+        "header_font_size": header_font_size,
+        "body_font_size": body_font_size,
+        "show_card_borders": show_card_borders,
     }
 
     if st.button(
@@ -482,6 +527,12 @@ if cover_results:
                     document_title=document_title.strip(),
                     books_per_page=int(books_per_page),
                     selected_fields=selected_fields,
+                    header_color=header_color,
+                    header_text_color=header_text_color,
+                    font_family=font_family,
+                    header_font_size=header_font_size,
+                    body_font_size=body_font_size,
+                    show_card_borders=show_card_borders,
                 )
             except Exception as exc:
                 st.error(f"Impossible de générer le PDF : {exc}")
@@ -506,5 +557,5 @@ if cover_results:
         else:
             st.warning(
                 "Les paramètres ont changé depuis la dernière génération. "
-                "Cliquez à nouveau sur « Générer le catalogue PDF »."
+                "Clique à nouveau sur « Générer le catalogue PDF »."
             )
