@@ -145,15 +145,15 @@ def fetch_bnf_cover(isbn: str) -> tuple[bytes | None, str]:
     return None, f"Réponse BnF inattendue ({response.status_code})"
 
 
-st.title("📚 Créateur de catalogue de nouveautés")
-st.caption("Étape 1 : importer le fichier et choisir les données bibliographiques")
+st.title("📚 Créateur de catalogue de nouveautés de la médiathèque")
+st.caption("Étape 1 : importer le fichier (excel) et choisir les données bibliographiques correspondantes")
 
 with st.expander("Confidentialité des données", expanded=False):
     st.write(
-        "L'application ne doit conserver que les colonnes bibliographiques utiles. "
+        "ATTENTION ! L'application ne doit conserver que les colonnes bibliographiques utiles. "
         "Ne sélectionnez jamais une colonne contenant le nom d'un emprunteur ou "
-        "une autre donnée personnelle. Dans cette première version, le fichier "
-        "est uniquement traité en mémoire pendant la session."
+        "une autre donnée personnelle. Le fichier fournit"
+        "est uniquement traité en mémoire pendant la session et n'est pas enregistré."
     )
 
 uploaded_file = st.file_uploader(
@@ -164,7 +164,7 @@ uploaded_file = st.file_uploader(
 )
 
 if uploaded_file is None:
-    st.info("Dépose un fichier Excel pour commencer.")
+    st.info("Pour commencer, déposez un fichier Excel svp")
     st.stop()
 
 try:
@@ -202,8 +202,8 @@ metric_3.metric("Feuille", sheet_name)
 
 st.subheader("Associer les colonnes")
 st.write(
-    "Vérifie les propositions automatiques. Seules les colonnes choisies seront "
-    "conservées pour construire le catalogue."
+    "Vérifiez les propositions automatiques. Seules les colonnes choisies seront "
+    "conservées pour construire le catalogue des nouveautés"
 )
 
 left, right = st.columns(2)
@@ -267,7 +267,7 @@ duplicates = sorted({column for column in selected_columns if selected_columns.c
 
 if duplicates:
     st.warning(
-        "Une même colonne a été associée à plusieurs informations : "
+        "Attention, une même colonne a été associée à plusieurs informations : "
         + ", ".join(duplicates)
     )
     st.stop()
@@ -298,13 +298,13 @@ st.dataframe(catalogue.head(20), use_container_width=True, hide_index=True)
 
 st.success(
     "Le fichier est correctement lu et les colonnes utiles sont isolées. "
-    "Tu peux maintenant rechercher les couvertures BnF."
+    "Vous pouvez maintenant rechercher les couvertures via l'API de la BnF."
 )
 
 st.divider()
-st.subheader("Rechercher les couvertures BnF")
+st.subheader("Lancer la rechercher des couvertures via la BnF")
 st.write(
-    "Seuls les ISBN sont envoyés au service Couvertures de la Bibliothèque "
+    "Remarque : seuls les ISBN sont envoyés au service Couvertures de la Bibliothèque "
     "nationale de France. Le fichier Excel complet n'est pas transmis."
 )
 
@@ -404,12 +404,12 @@ if cover_results:
                 st.caption(author)
 
     st.info(
-        "Les couvertures sont prêtes. Tu peux maintenant personnaliser et "
-        "générer le catalogue PDF."
+        "Les couvertures ont été récupérées. Vous pouvez maintenant paramétrer et "
+        "générer le catalogue des nouveautés au format PDF."
     )
 
     st.divider()
-    st.subheader("Créer le catalogue PDF")
+    st.subheader("Créer le catalogue des nouveautés au format PDF")
 
     document_title = st.text_input(
         "Titre du catalogue",
@@ -506,5 +506,5 @@ if cover_results:
         else:
             st.warning(
                 "Les paramètres ont changé depuis la dernière génération. "
-                "Clique à nouveau sur « Générer le catalogue PDF »."
+                "Cliquez à nouveau sur « Générer le catalogue PDF »."
             )
