@@ -5,7 +5,7 @@ en catalogue PDF illustré avec les couvertures disponibles auprès de la BnF.
 
 ## État du projet
 
-Cette deuxième version permet :
+Cette troisième version permet :
 
 - de déposer un fichier `.xls` ou `.xlsx` ;
 - de choisir la feuille Excel ;
@@ -15,9 +15,13 @@ Cette deuxième version permet :
 - d'interroger l'API Couvertures de la BnF ;
 - d'afficher une barre de progression et un bilan des résultats ;
 - de prévisualiser les couvertures trouvées ;
-- d'utiliser une vignette générique lorsqu'une couverture est absente.
+- d'utiliser une vignette générique lorsqu'une couverture est absente ;
+- de personnaliser le titre du catalogue ;
+- de choisir 2, 4 ou 6 ouvrages par page ;
+- de sélectionner les informations à afficher ;
+- de générer et télécharger le catalogue PDF.
 
-La génération du PDF personnalisable sera ajoutée à l'étape suivante.
+Le PDF est produit en mémoire et n'est pas enregistré dans le dépôt GitHub.
 
 ## Développement dans GitHub Codespaces
 

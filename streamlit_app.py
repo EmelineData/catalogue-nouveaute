@@ -9,6 +9,8 @@ import requests
 import streamlit as st
 from PIL import Image, ImageDraw, ImageFont
 
+from pdf_generator import build_catalogue_pdf
+
 
 BNF_COVER_URL = "https://openapi.bnf.fr/couverture/image/image/recupererImage"
 
@@ -312,6 +314,7 @@ dataset_key = hashlib.sha256(
 
 if st.session_state.get("cover_dataset_key") != dataset_key:
     st.session_state.pop("cover_results", None)
+    st.session_state.pop("generated_pdf", None)
     st.session_state["cover_dataset_key"] = dataset_key
 
 if st.button(
@@ -401,6 +404,107 @@ if cover_results:
                 st.caption(author)
 
     st.info(
-        "Étape suivante : choisir le titre du catalogue et le nombre de livres "
-        "par page, puis générer le PDF."
+        "Les couvertures sont prêtes. Tu peux maintenant personnaliser et "
+        "générer le catalogue PDF."
     )
+
+    st.divider()
+    st.subheader("Créer le catalogue PDF")
+
+    document_title = st.text_input(
+        "Titre du catalogue",
+        value="Les nouveautés de la bibliothèque",
+        max_chars=120,
+    )
+
+    settings_left, settings_right = st.columns(2)
+
+    with settings_left:
+        books_per_page = st.segmented_control(
+            "Nombre d'ouvrages par page",
+            options=[2, 4, 6],
+            default=4,
+            selection_mode="single",
+        )
+
+    available_fields: list[str] = []
+    if "nom_auteur" in catalogue.columns or "prenom_auteur" in catalogue.columns:
+        available_fields.append("Auteur")
+    if "annee" in catalogue.columns:
+        available_fields.append("Année")
+    if "genre" in catalogue.columns:
+        available_fields.append("Genre")
+    if "cote" in catalogue.columns:
+        available_fields.append("Cote")
+    available_fields.append("ISBN")
+
+    default_fields = [
+        field
+        for field in ["Auteur", "Année", "Genre", "Cote"]
+        if field in available_fields
+    ]
+
+    with settings_right:
+        selected_fields = st.multiselect(
+            "Informations à afficher sous le titre",
+            options=available_fields,
+            default=default_fields,
+        )
+
+    estimated_pages = (
+        (len(catalogue) + books_per_page - 1) // books_per_page
+        if books_per_page
+        else 0
+    )
+    st.caption(
+        f"Le catalogue contiendra environ {estimated_pages} page(s) pour "
+        f"{len(catalogue)} ouvrage(s). Le titre du livre est toujours affiché."
+    )
+
+    pdf_configuration = {
+        "dataset": dataset_key,
+        "title": document_title,
+        "books_per_page": books_per_page,
+        "fields": selected_fields,
+    }
+
+    if st.button(
+        "📄 Générer le catalogue PDF",
+        type="primary",
+        disabled=not document_title.strip() or books_per_page is None,
+    ):
+        with st.spinner("Génération du catalogue en cours..."):
+            try:
+                pdf_bytes = build_catalogue_pdf(
+                    catalogue=catalogue,
+                    cover_results=cover_results,
+                    fallback_cover=fallback,
+                    document_title=document_title.strip(),
+                    books_per_page=int(books_per_page),
+                    selected_fields=selected_fields,
+                )
+            except Exception as exc:
+                st.error(f"Impossible de générer le PDF : {exc}")
+            else:
+                st.session_state["generated_pdf"] = {
+                    "bytes": pdf_bytes,
+                    "configuration": pdf_configuration,
+                }
+                st.success("Le catalogue PDF est prêt.")
+
+    generated_pdf = st.session_state.get("generated_pdf")
+    if generated_pdf:
+        if generated_pdf["configuration"] == pdf_configuration:
+            st.download_button(
+                "⬇️ Télécharger le catalogue PDF",
+                data=generated_pdf["bytes"],
+                file_name="catalogue_nouveautes.pdf",
+                mime="application/pdf",
+                type="primary",
+                use_container_width=True,
+            )
+        else:
+            st.warning(
+                "Les paramètres ont changé depuis la dernière génération. "
+                "Clique à nouveau sur « Générer le catalogue PDF »."
+            )
