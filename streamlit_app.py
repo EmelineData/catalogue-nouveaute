@@ -150,9 +150,9 @@ st.caption("Étape 1 : importer le fichier (excel) et choisir les données bibli
 
 with st.expander("Confidentialité des données", expanded=False):
     st.write(
-        "ATTENTION ! L'application ne doit conserver que les colonnes bibliographiques utiles. "
+        "ATTENTION ! Veuillez fournie un fichier ne contenant que les colonnes bibliographiques utiles. "
         "Ne sélectionnez jamais une colonne contenant le nom d'un emprunteur ou "
-        "une autre donnée personnelle. Le fichier fournit"
+        "une autre donnée personnelle. Sachez que le fichier fournit"
         "est uniquement traité en mémoire pendant la session et n'est pas enregistré."
     )
 
